@@ -5,5 +5,6 @@ CREATE TABLE IF NOT EXISTS one_tick_data (
   Close       NUMERIC  NOT NULL,
   High        NUMERIC  NOT NULL,
   Low         NUMERIC  NOT NULL,
-  Volume      NUMERIC NOT NULL 
+  Volume      NUMERIC NOT NULL,
+  PRIMARY KEY(time, market)
 );
