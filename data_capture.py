@@ -54,8 +54,6 @@ def main():
 
     symbols = exchange.symbols
 
-    
-
     CONNECTION = "postgres://mani:abcd@localhost:5432/nyc_data"
 
     conn = None

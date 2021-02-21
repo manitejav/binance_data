@@ -3,6 +3,11 @@ import psycopg2
 import ccxt
 import boto3
 from botocore.exceptions import ClientError
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
+import json
+
 
 def main():
 
@@ -23,15 +28,29 @@ def main():
 
     CONNECTION = "postgres://mani:abcd@localhost:5432/nyc_data"
     conn = None
+
+    try:
+        conn=psycopg2.connect(CONNECTION)
+        cur = conn.cursor()
+        QUERY = "SELECT market, COUNT(*) as count FROM one_tick_data GROUP BY market"
+        cur.execute(QUERY)
+        data=cur.fetchall()
+
+    except (Exception, psycopg2.Error) as error:
+        print(error)
+    finally:
+        if conn is not None:
+            conn.close()
+
+    data = '\n'.join('%s %s' % x for x in data)
     
     SENDER = "teja3536mani@gmail.com"
-
 
     RECIPIENT = "manitejavuppula@gmail.com"
 
     AWS_REGION = "ap-south-1"
 
-    SUBJECT = "Amazon SES Test (SDK for Python)"
+    SUBJECT = "Binance data report"
 
     # The email body for recipients with non-HTML email clients.
     BODY_TEXT = ("Amazon SES Test (Python)\r\n"
@@ -56,32 +75,34 @@ def main():
 
     client = boto3.client('ses',region_name=AWS_REGION)
 
+    msg = MIMEMultipart('mixed')
+    # Add subject, from and to lines.
+    msg['Subject'] = SUBJECT 
+    msg['From'] = SENDER 
+    msg['To'] = RECIPIENT
+    msg_body = MIMEMultipart('alternative')
+    textpart = MIMEText(BODY_TEXT.encode(CHARSET), 'plain', CHARSET)
+    htmlpart = MIMEText(BODY_HTML.encode(CHARSET), 'html', CHARSET)
+    # Add the text and HTML parts to the child container.
+    msg_body.attach(textpart)
+    msg_body.attach(htmlpart)
+    # Define the attachment part and encode it using MIMEApplication.
+    att = MIMEText(str(data))
+    att.add_header('Content-Disposition','attachment',filename="report.txt")
+    msg.attach(msg_body)
+    # Add the attachment to the parent container.
+    msg.attach(att)
     # Try to send the email.
     try:
         #Provide the contents of the email.
-        response = client.send_email(
-            Destination={
-                'ToAddresses': [
-                    RECIPIENT,
-                ],
+        response = client.send_raw_email(
+            Destinations=[
+                msg['To']
+            ],
+            RawMessage={
+                'Data':msg.as_string(),
             },
-            Message={
-                'Body': {
-                    'Html': {
-                        'Charset': CHARSET,
-                        'Data': BODY_HTML,
-                    },
-                    'Text': {
-                        'Charset': CHARSET,
-                        'Data': BODY_TEXT,
-                    },
-                },
-                'Subject': {
-                    'Charset': CHARSET,
-                    'Data': SUBJECT,
-                },
-            },
-            Source=SENDER,
+            Source=msg['From'],
         )
     # Display an error if something goes wrong.	
     except ClientError as e:
@@ -90,18 +111,6 @@ def main():
         print("Email sent! Message ID:"),
         print(response['MessageId'])
 
-    # try:
-    #     conn=psycopg2.connect(CONNECTION)
-    #     cur = conn.cursor()
-    #     QUERY = "SELECT market, COUNT(*) as count FROM one_tick_data GROUP BY market"
-    #     cur.execute(QUERY)
-    #     for symbol in symbols:
-
-    # except (Exception, psycopg2.Error) as error:
-    #     print(error)
-    # finally:
-    #     if conn is not None:
-    #         conn.close()
-
 if __name__ == "__main__":
     main()
+
