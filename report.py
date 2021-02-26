@@ -26,13 +26,13 @@ def main():
 
     symbols = exchange.symbols
 
-    CONNECTION = "postgres://mani:abcd@localhost:5432/nyc_data"
+    CONNECTION = "postgres://mani:abcd@localhost:5432/binance_data"
     conn = None
 
     try:
         conn=psycopg2.connect(CONNECTION)
         cur = conn.cursor()
-        QUERY = "SELECT market, COUNT(*) as count FROM one_tick_data GROUP BY market"
+        QUERY = "SELECT market, 60, COUNT(*), ROUND(COUNT(*)*100.0/60,2) as count FROM one_tick_data where time>= NOW() - INTERVAL '1 HOURS' GROUP BY market"
         cur.execute(QUERY)
         data=cur.fetchall()
 
@@ -42,11 +42,11 @@ def main():
         if conn is not None:
             conn.close()
 
-    data = '\n'.join('%s %s' % x for x in data)
+    data = '\n'.join('%s, %s, %s, %s' % x for x in data)
     
     SENDER = "teja3536mani@gmail.com"
 
-    RECIPIENT = "manitejavuppula@gmail.com"
+    RECIPIENT = "edul@mudrex.com"
 
     AWS_REGION = "ap-south-1"
 
@@ -88,7 +88,7 @@ def main():
     msg_body.attach(htmlpart)
     # Define the attachment part and encode it using MIMEApplication.
     att = MIMEText(str(data))
-    att.add_header('Content-Disposition','attachment',filename="report.txt")
+    att.add_header('Content-Disposition','attachment',filename="report.csv")
     msg.attach(msg_body)
     # Add the attachment to the parent container.
     msg.attach(att)
@@ -113,4 +113,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

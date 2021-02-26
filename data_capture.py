@@ -1,40 +1,42 @@
+#!/home/ubuntu/venv/binance/bin/python3
+
 from datetime import datetime
 import time
 import ccxt
 import psycopg2
+from psycopg2 import Error
 import requests
 import json
-# import asyncio
-# import ccxt.async_support as ccxt
+
 
 def insert_data(data, market, cur):
-    SQL =  "INSERT INTO one_tick_data (time, market, open, close, high, low, volume) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-
+    SQL =  "INSERT INTO one_tick_data (time, market, open, close, high, low, volume) VALUES (date_trunc('minute', TIMESTAMP %s), %s, %s, %s, %s, %s, %s)"
     for res in data:
-        row = (datetime.fromtimestamp(res[0]/1000), market, res[1], res[4], res[2], res[3], res[5])
+        timestamp = datetime.fromtimestamp(res[0]/1000)
+        row = (timestamp, market, res[1], res[4], res[2], res[3], res[5])
         try:
-            print(row)
             cur.execute(SQL, row)
-        except (Exception, psycopg2.Error) as error:
+        except (Exception, Error) as error:
             print(error)
-            print(data)
 
-
-def insert_tickers(exchange, market, conn, startTime, endTime):
+def insert_tickers(market, conn, startTime, endTime):
     URL = "https://api.binance.com/api/v3/klines"
     symbol=market.replace("/", "")
     PARAMS = {'symbol':symbol, 'interval':'1m', 'startTime':startTime, 'endTime':endTime}
-    r=requests.get(URL, PARAMS)
-    data=r.json()
-    if "code" in data and data["code"]==-1121 :
-        print("Invalid symbol, %s", symbol)
-        return
 
-    cur = conn.cursor()
-    insert_data(data, market, cur)
-    conn.commit()
-    print("INSERTED MARKET")
-    cur.close()
+    try:
+        r=requests.get(URL, PARAMS)
+        data=r.json()
+        if "code" in data and data["code"]==-1121 :
+            print("Invalid symbol, %s", symbol)
+            return
+
+        cur = conn.cursor()
+        insert_data(data, market, cur)
+        conn.commit()
+        cur.close()
+    except requests.exceptions.Timeout:
+        insert_tickers(market, conn, startTime, endTime)
 
 
 def main():
@@ -54,12 +56,10 @@ def main():
 
     symbols = exchange.symbols
 
-    CONNECTION = "postgres://mani:abcd@localhost:5432/nyc_data"
-
     conn = None
 
     try:
-        conn=psycopg2.connect(CONNECTION)
+        conn=psycopg2.connect(user="mani", password="abcd", host="127.0.0.1", port="5432", database="binance_data")
         for symbol in symbols:
             QUERY = "SELECT time from one_tick_data where market=%s ORDER BY time DESC LIMIT 1"
             data = (symbol,)
@@ -67,12 +67,12 @@ def main():
             cur.execute(QUERY, data)
 
             if cur.rowcount==0:
-                insert_tickers(exchange, symbol, conn, round((time.time()-1000000)*1000), round(time.time()*1000))
+                insert_tickers(symbol, conn, round((time.time()-30*24*60)*1000), round(time.time()*1000))
             else:
                 for start_time, in cur:
-                    insert_tickers(exchange, symbol, conn, round(datetime.timestamp(start_time)), round(time.time()*1000))
+                    insert_tickers(symbol, conn, round((datetime.timestamp(start_time)+1)*1000), round(time.time()*1000))
 
-    except (Exception, psycopg2.Error) as error:
+    except (Exception, Error) as error:
         print(error)
     finally:
         if conn is not None:
