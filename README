@@ -1,0 +1,25 @@
+Jobs are scheduled using cron.
+
+The edit of the crontab in the image is 
+
+    0 * * * * /home/ubuntu/binance_data/data_capture.py
+    0 * * * * /home/ubuntu/binance_data/report.py
+    0 * * * * PGPASSWORD=abcd psql -U mani -h localhost -d binance_data  < /home/ubuntu/binance_data/insert.sql
+
+Scheduled every hour.(Can be customized if needed).
+
+Hosted on aws EC2 instance, with ubuntu image. Used postgres with Timescaledb as extension to store data. 
+Amazon SES is used to send mail of the reports. (Email needs to be verfied in SES console before using)
+
+ubuntu@ec2-65-0-5-80.ap-south-1.compute.amazonaws.com
+Will attach the private key(.pem) file. 
+
+Database details: binance_data
+    Tables:
+        one_tick_data
+        five_tick_data
+        fifteen_tick_data
+        thirty_tick_data
+        hour_tick_data
+
+
